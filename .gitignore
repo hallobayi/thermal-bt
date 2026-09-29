@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Catatan kerja asisten (memori proyek, scratch space, screenshot verifikasi).
+# Bukan bagian dari pustaka, jadi tidak ikut di-commit.
+.workbuddy-ai/

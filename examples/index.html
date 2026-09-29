@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>thermal-bt — playground</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #16191d;
+    --muted: #5c6672;
+    --line: #dfe3e8;
+    --accent: #1f6feb;
+    --warn: #8a5300;
+    --warn-bg: #fff6e5;
+    --ok: #1a7f37;
+    --code-bg: #f2f4f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 64px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  p { margin: 0 0 12px; }
+  .lede { color: var(--muted); margin-bottom: 24px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  label.transport {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  label.transport:has(input:checked) { border-color: var(--accent); background: #f0f6ff; }
+  label.transport input { margin-right: 8px; }
+  label.transport .name { font-weight: 600; }
+  label.transport .desc { color: var(--muted); font-size: 13px; margin-left: 24px; }
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    margin-left: 6px;
+    vertical-align: 1px;
+  }
+  .tag.yes { color: var(--ok); border-color: #b7e0c1; background: #f0fbf3; }
+  .tag.no { color: #a13d3d; border-color: #eec4c4; background: #fdf2f2; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    overflow: auto;
+    margin: 0;
+    font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre;
+    max-height: 320px;
+  }
+  .receipt { background: #fff; border: 1px dashed var(--line); border-radius: 8px; padding: 12px; overflow: auto; max-height: 320px; }
+  .receipt pre { background: transparent; border: 0; padding: 0; font-size: 12.5px; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    padding: 11px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  button.secondary { background: #fff; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .warnings { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 13.5px; }
+  .warnings ul { margin: 6px 0 0; padding-left: 18px; }
+  .outcome { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13.5px; border: 1px solid var(--line); }
+  .outcome.ok { background: #f0fbf3; border-color: #b7e0c1; }
+  .outcome.fail { background: #fdf2f2; border-color: #eec4c4; }
+  .muted { color: var(--muted); font-size: 13px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.y { color: var(--ok); }
+  td.n { color: #a13d3d; }
+</style>
+</head>
+<body>
+<main>
+  <h1>thermal-bt playground</h1>
+  <p class="lede">
+    One receipt, four ways to print it. Pick a transport to see exactly what it would send, and
+    what it would have to drop.
+  </p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Transport</h2>
+      <div id="transports"></div>
+      <p class="muted" id="env" style="margin-top:12px"></p>
+    </section>
+
+    <section class="card">
+      <h2>Receipt</h2>
+      <div class="row">
+        <button class="secondary" data-preset="receipt">Coffee shop</button>
+        <button class="secondary" data-preset="barcode">Barcode + QR</button>
+        <button class="secondary" data-preset="styles">Every style</button>
+      </div>
+      <p class="muted" style="margin-top:12px">
+        Columns: <code id="cols">32</code> (58&nbsp;mm paper). Set from the paper width, because the
+        plain-text path pads with spaces and has to agree with the app's own wrapping.
+      </p>
+      <div class="row" style="margin-top:16px">
+        <button id="print">Print with the selected transport</button>
+      </div>
+      <div id="outcome"></div>
+    </section>
+
+    <section class="card wide">
+      <h2>What the receiving app would get</h2>
+      <div class="receipt"><pre id="textPreview"></pre></div>
+      <div id="textWarnings"></div>
+    </section>
+
+    <section class="card">
+      <h2>Capabilities</h2>
+      <table id="capabilities"><tbody></tbody></table>
+    </section>
+
+    <section class="card">
+      <h2>Hand-off URI</h2>
+      <p class="muted" id="uriNote"></p>
+      <pre id="uri"></pre>
+    </section>
+
+    <section class="card wide">
+      <h2>ESC/POS bytes</h2>
+      <p class="muted" id="byteSummary"></p>
+      <pre id="hex"></pre>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+  import * as thermal from '../dist/index.js'
+
+  const COLUMNS = thermal.paperColumns(58)
+  document.getElementById('cols').textContent = String(COLUMNS)
+
+  const presets = {
+    receipt(job) {
+      job.initialize()
+      job.header('KOPI SENJA', 'Jl. Merdeka 12, Jakarta')
+      job.rule('=')
+      job.keyValue('Kopi Susu', '25.000')
+      job.keyValue('Roti Bakar', '18.000')
+      job.keyValue('Es Teh', '8.000')
+      job.rule('-')
+      job.bold(true).keyValue('TOTAL', '51.000').bold(false)
+      job.rule('=')
+      job.center().line('Terima kasih!').line('--')
+      job.feed(2).cut()
+      return job
+    },
+    barcode(job) {
+      job.initialize()
+      job.center().fontSize('large').bold(true).line('INVOICE').bold(false).fontSize('normal')
+      job.line('INV-2026-0001')
+      job.rule()
+      job.qrcode('https://example.com/inv/2026-0001', { moduleSize: 4 })
+      job.feed(1)
+      job.barcode('INV20260001', 'code128', { height: 60, hri: 'below' })
+      job.feed(2).cut().openDrawer()
+      return job
+    },
+    styles(job) {
+      job.initialize()
+      job.align('left').line('left')
+      job.center().line('center')
+      job.right().line('right')
+      job.left()
+      job.bold(true).line('bold').bold(false)
+      job.underline(1).line('underline one').underline(2).line('underline two').underline(0)
+      job.fontSize('large').line('large').fontSize('normal')
+      job.fontSize('tall').line('tall').fontSize('normal')
+      job.raw([0x1b, 0x21, 0x30]).line('raw mode 0x30').raw([0x1b, 0x21, 0x00])
+      job.rule('*')
+      job.feed(2).cut()
+      return job
+    }
+  }
+
+  let currentPreset = 'receipt'
+
+  function buildJob() {
+    const job = new thermal.PrintDocument({ columns: COLUMNS })
+    return presets[currentPreset](job)
+  }
+
+  const transports = thermal.createTransports()
+  const env = thermal.detectEnvironment()
+  let selectedId = thermal.defaultTransport().id
+
+  function renderTransportPicker() {
+    const host = document.getElementById('transports')
+    host.innerHTML = ''
+
+    for (const transport of transports) {
+      const supported = transport.isSupported()
+      const label = document.createElement('label')
+      label.className = 'transport'
+      label.innerHTML = `
+        <input type="radio" name="transport" value="${transport.id}"
+               ${transport.id === selectedId ? 'checked' : ''} ${supported ? '' : 'disabled'}>
+        <span class="name">${transport.label}</span>
+        <span class="tag ${transport.capabilities.rawEscPos ? 'yes' : 'no'}">
+          ${transport.capabilities.rawEscPos ? 'raw ESC/POS' : 'no raw ESC/POS'}
+        </span>
+        ${transport.capabilities.requiresConfirmation ? '<span class="tag">needs a tap</span>' : ''}
+        ${supported ? '' : '<span class="tag no">unavailable here</span>'}
+        <div class="desc">${transport.description}</div>
+      `
+      host.appendChild(label)
+    }
+
+    host.addEventListener('change', (event) => {
+      selectedId = event.target.value
+      render()
+    })
+
+    document.getElementById('env').textContent =
+      `Android: ${env.isAndroid ? 'yes' : 'no'} · Chromium: ${env.isChromium ? 'yes' : 'no'} · ` +
+      `intent: URIs usable: ${env.canUseIntentUris ? 'yes' : 'no'}`
+  }
+
+  function selectedTransport() {
+    return transports.find((transport) => transport.id === selectedId) ?? transports[0]
+  }
+
+  function renderCapabilities() {
+    const transport = selectedTransport()
+    const rows = Object.entries(transport.capabilities)
+      .map(([key, value]) => {
+        const shown = typeof value === 'boolean' ? (value ? 'yes' : 'no') : String(value)
+        const cls = value === true ? 'y' : value === false ? 'n' : ''
+        return `<tr><th>${key}</th><td class="${cls}">${shown}</td></tr>`
+      })
+      .join('')
+    document.getElementById('capabilities').querySelector('tbody').innerHTML = rows
+  }
+
+  function uriFor(transport, job) {
+    if (transport.id === 'rawbt') {
+      return thermal.buildRawBtUri(thermal.renderEscPos(job).output)
+    }
+    if (transport.id === 'rawthermal-raw') {
+      return thermal.buildRawThermalRawUri(thermal.renderEscPos(job).output)
+    }
+    if (transport.id === 'rawthermal-share') {
+      return thermal.buildRawThermalShareUri(thermal.renderPlainText(job).output, 'receipt.txt')
+    }
+    return null
+  }
+
+  /**
+   * Show the head and the tail of a long URI.
+   *
+   * Truncating the tail would hide the part that matters most: the fragment items
+   * (`action=`, `scheme=`, `package=`, `end;`) all sit at the end, after a base64 payload that
+   * can be a thousand characters on its own.
+   */
+  function elide(uri, head = 260, tail = 260) {
+    if (uri.length <= head + tail + 40) return uri
+    const hidden = uri.length - head - tail
+    return `${uri.slice(0, head)}\n… ${hidden} characters elided …\n${uri.slice(-tail)}`
+  }
+
+  function render() {
+    const transport = selectedTransport()
+    const job = buildJob()
+
+    const text = thermal.renderPlainText(job)
+    document.getElementById('textPreview').textContent = text.output || '(nothing)'
+    document.getElementById('textWarnings').innerHTML = text.warnings.length
+      ? `<div class="warnings"><strong>This path drops ${text.warnings.length} thing${text.warnings.length === 1 ? '' : 's'}:</strong><ul>${text.warnings.map((warning) => `<li>${warning}</li>`).join('')}</ul></div>`
+      : ''
+
+    const bytes = thermal.renderEscPos(job).output
+    document.getElementById('byteSummary').textContent =
+      `${bytes.length} bytes, code page ${thermal.DEFAULT_CODEPAGE}. First byte is always 1b 40 (ESC @).`
+    document.getElementById('hex').textContent = [...bytes]
+      .map((value) => value.toString(16).padStart(2, '0'))
+      .join(' ')
+
+    const uri = uriFor(transport, job)
+    document.getElementById('uriNote').textContent = uri
+      ? 'Open this from a user gesture — a click. Chrome refuses external-protocol launches that are not user-initiated.'
+      : 'This transport does not use a URI; it opens the Android print dialog instead.'
+    document.getElementById('uri').textContent = uri ? elide(uri) : '(none)'
+
+    renderCapabilities()
+  }
+
+  document.querySelectorAll('[data-preset]').forEach((button) => {
+    button.addEventListener('click', () => {
+      currentPreset = button.dataset.preset
+      render()
+    })
+  })
+
+  document.getElementById('print').addEventListener('click', async () => {
+    const output = document.getElementById('outcome')
+    output.innerHTML = ''
+
+    const transport = selectedTransport()
+    const job = buildJob()
+
+    try {
+      const outcome = await thermal.print(job, {
+        transport,
+        title: 'receipt.txt',
+        fallbackUrl: location.href
+      })
+
+      output.innerHTML =
+        `<div class="outcome ${outcome.ok ? 'ok' : 'fail'}">` +
+        `<strong>${outcome.ok ? 'Handed off' : 'Not sent'}:</strong> ${outcome.message}` +
+        (outcome.warnings.length
+          ? `<ul>${outcome.warnings.map((warning) => `<li>${warning}</li>`).join('')}</ul>`
+          : '') +
+        `</div>`
+    } catch (error) {
+      output.innerHTML = `<div class="outcome fail"><strong>Threw:</strong> ${error.message}</div>`
+    }
+  })
+
+  renderTransportPicker()
+  render()
+</script>
+</body>
+</html>
