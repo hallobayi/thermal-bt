@@ -1,21 +1,6 @@
-/*!
- * RawThermal JS v1.1.0
- * Browser/PWA helper for Raw Thermal on Android.
- *
- * Raw Thermal does not expose the rawbt: browser URI used by RawBT, so this
- * library focuses on Android VIEW intent handoff for PDF URLs.
- *
- * Generated file - do not edit directly. Edit src/*.js and run: npm run build
- * License: MIT
- */
+"use strict";
 
-
-
-/* --- src/config.js --- */
-(function (global) {
-  "use strict";
-
-  global.RawThermalConfig = (function () {
+const RawThermalConfig = (function () {
     "use strict";
 
     var VERSION = "1.1.0";
@@ -61,14 +46,16 @@
       DEFAULTS: DEFAULTS,
       withDefaults: withDefaults
     };
-  })();
-})(typeof window !== "undefined" ? window : this);
+})();
 
-/* --- src/platform.js --- */
-(function (global) {
-  "use strict";
+const global = { RawThermalConfig: RawThermalConfig };
+global.RawThermalPlatform = { value: undefined };
+global.RawThermalIntent = { value: undefined };
+global.RawThermalText = { value: undefined };
+global.RawThermalDom = { value: undefined };
 
-  global.RawThermalPlatform = (function () {
+global.RawThermalPlatform.value = (function () {
+
     "use strict";
 
     function isAndroid(win) {
@@ -89,14 +76,10 @@
     }
 
     return { isAndroid: isAndroid };
-  })();
-})(typeof window !== "undefined" ? window : this);
+})();
 
-/* --- src/intent.js --- */
-(function (global) {
-  "use strict";
+global.RawThermalIntent.value = (function () {
 
-  global.RawThermalIntent = (function () {
     "use strict";
 
     var MIME_PDF = "application/pdf";
@@ -147,14 +130,10 @@
       toAbsoluteUrl: toAbsoluteUrl,
       buildViewIntent: buildViewIntent
     };
-  })();
-})(typeof window !== "undefined" ? window : this);
+})();
 
-/* --- src/text.js --- */
-(function (global) {
-  "use strict";
+global.RawThermalText.value = (function () {
 
-  global.RawThermalText = (function () {
     "use strict";
 
     var HTML_ESCAPES = {
@@ -187,14 +166,10 @@
       escapeHtml: escapeHtml,
       buildTextDocument: buildTextDocument
     };
-  })();
-})(typeof window !== "undefined" ? window : this);
+})();
 
-/* --- src/dom.js --- */
-(function (global) {
-  "use strict";
+global.RawThermalDom.value = (function () {
 
-  global.RawThermalDom = (function () {
     "use strict";
 
     function scope(win) {
@@ -278,14 +253,15 @@
       clickIntent: clickIntent,
       openTextDocument: openTextDocument
     };
-  })();
-})(typeof window !== "undefined" ? window : this);
+})();
 
-/* --- src/index.js --- */
-(function (global) {
-  "use strict";
+global.RawThermalPlatform = global.RawThermalPlatform.value;
+global.RawThermalIntent = global.RawThermalIntent.value;
+global.RawThermalText = global.RawThermalText.value;
+global.RawThermalDom = global.RawThermalDom.value;
 
-  global.RawThermal = (function (config, platform, intent, text, dom) {
+module.exports = (function (config, platform, intent, text, dom) {
+
     "use strict";
 
     var withDefaults = config.withDefaults;
@@ -385,5 +361,14 @@
       printBase64: printBase64,
       buildViewIntent: buildViewIntent
     };
-  })(global.RawThermalConfig, global.RawThermalPlatform, global.RawThermalIntent, global.RawThermalText, global.RawThermalDom);
-})(typeof window !== "undefined" ? window : this);
+})(global.RawThermalConfig, global.RawThermalPlatform, global.RawThermalIntent, global.RawThermalText, global.RawThermalDom);
+
+module.exports.version = RawThermalConfig.VERSION;
+module.exports.DEFAULTS = RawThermalConfig.DEFAULTS;
+module.exports._internals = {
+  config: RawThermalConfig,
+  platform: global.RawThermalPlatform,
+  intent: global.RawThermalIntent,
+  text: global.RawThermalText,
+  dom: global.RawThermalDom
+};
