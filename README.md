@@ -186,12 +186,28 @@ Bugs fixed along the way, each with a test:
 | `btoa(String.fromCharCode(...bytes))` | `RangeError` past ~100k arguments — a receipt with a logo |
 | `window.location.href = uri` | A failed launch replaced the user's page |
 
+## Plain script tag (no bundler)
+
+If you are not using a module system, load the global bundle:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/thermal-bt@latest/dist/thermal-bt.global.min.js"></script>
+<script>
+  const job = new thermalBt.PrintDocument({ columns: 32 })
+  job.initialize().header('KOPI SENJA', 'Jl. Merdeka 12, Jakarta').rule().cut()
+  thermalBt.print(job)
+</script>
+```
+
+Or download `dist/thermal-bt.global.min.js` and serve it yourself. The same file also works as a
+UMD module (`require('thermal-bt')` in Node, or an AMD loader in the browser).
+
 ## Development
 
 ```
 npm test          # node --test, no vitest or jest
 npm run typecheck # tsc, sources and tests
-npm run build     # tsc -> dist, ESM + .d.ts
+npm run build     # tsc -> dist, ESM + .d.ts + global bundles
 npm run verify    # all three
 npm run examples  # http://127.0.0.1:4173
 ```

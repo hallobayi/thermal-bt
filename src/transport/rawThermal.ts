@@ -20,7 +20,8 @@ import { renderEscPos } from '../document/renderEscPos.ts'
 import { renderPlainText } from '../document/renderPlainText.ts'
 import { bytesToBase64 } from './encoding.ts'
 import { buildIntentUri } from './intentUri.ts'
-import { detectEnvironment, openIntentUri } from './platform.ts'
+import { handOffIntentUri } from './intentHandoff.ts'
+import { canUseIntentUris } from './platform.ts'
 import type { PrintRequest, Transport, TransportCapabilities, TransportOutcome } from './types.ts'
 
 /** Application id, from `capacitor.config.ts` in the Raw Thermal project. */
@@ -116,7 +117,7 @@ export class RawThermalShareTransport implements Transport {
   readonly capabilities = RAW_THERMAL_SHARE_CAPABILITIES
 
   isSupported(): boolean {
-    return detectEnvironment().canUseIntentUris
+    return canUseIntentUris()
   }
 
   async send(request: PrintRequest): Promise<TransportOutcome> {
@@ -132,25 +133,12 @@ export class RawThermalShareTransport implements Transport {
       }
     }
 
-    const uri = buildRawThermalShareUri(text, request.title, request.fallbackUrl)
-
-    try {
-      openIntentUri(uri)
-    } catch (error) {
-      return {
-        ok: false,
-        message: error instanceof Error ? error.message : 'Could not open Raw Thermal',
-        warnings,
-        uri
-      }
-    }
-
-    return {
-      ok: true,
-      message: 'Sent to Raw Thermal. Open it and tap Print.',
+    return handOffIntentUri({
+      uri: buildRawThermalShareUri(text, request.title, request.fallbackUrl),
       warnings,
-      uri
-    }
+      successMessage: 'Sent to Raw Thermal. Open it and tap Print.',
+      failureMessage: 'Could not open Raw Thermal'
+    })
   }
 }
 
@@ -169,7 +157,7 @@ export class RawThermalRawTransport implements Transport {
   readonly capabilities = RAW_THERMAL_RAW_CAPABILITIES
 
   isSupported(): boolean {
-    return detectEnvironment().canUseIntentUris
+    return canUseIntentUris()
   }
 
   async send(request: PrintRequest): Promise<TransportOutcome> {
@@ -177,25 +165,12 @@ export class RawThermalRawTransport implements Transport {
       columns: request.columns
     })
 
-    const uri = buildRawThermalRawUri(bytes, request.fallbackUrl)
-
-    try {
-      openIntentUri(uri)
-    } catch (error) {
-      return {
-        ok: false,
-        message: error instanceof Error ? error.message : 'Could not open Raw Thermal',
-        warnings,
-        uri
-      }
-    }
-
-    return {
-      ok: true,
-      message:
-        'Sent to Raw Thermal as raw ESC/POS. If nothing happens, this build does not have the PRINT_RAW receiver yet.',
+    return handOffIntentUri({
+      uri: buildRawThermalRawUri(bytes, request.fallbackUrl),
       warnings,
-      uri
-    }
+      successMessage:
+        'Sent to Raw Thermal as raw ESC/POS. If nothing happens, this build does not have the PRINT_RAW receiver yet.',
+      failureMessage: 'Could not open Raw Thermal'
+    })
   }
 }

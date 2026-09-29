@@ -70,8 +70,14 @@ const LABELS: Record<CodepageId, string> = {
   'utf-8': 'UTF-8 (printer native mode)'
 }
 
-/** `ESC t n` per numbering. Only the entries that differ between the two tables are listed twice. */
-const ESC_POS_NUMBERS: Record<string, Record<CodepageNumbering, number>> = {
+/**
+ * `ESC t n` per numbering.
+ *
+ * Typed as `Record<GeneratedCodepageId, ...>` so a missing entry is a compile error rather than
+ * a silently missing `ESC t n` command that leaves the printer on whatever code page it booted
+ * with.
+ */
+const ESC_POS_NUMBERS: Record<GeneratedCodepageId, Record<CodepageNumbering, number>> = {
   cp437: { rawbt: 0, pt210: 0 },
   cp850: { rawbt: 2, pt210: 2 },
   cp860: { rawbt: 3, pt210: 3 },
@@ -152,7 +158,7 @@ export const CODEPAGE_DEFINITIONS: readonly CodepageDefinition[] = [
   ...(Object.keys(CODEPAGE_TABLES) as GeneratedCodepageId[]).map((id) => ({
     id: id as CodepageId,
     label: LABELS[id],
-    escPos: ESC_POS_NUMBERS[id] ?? null
+    escPos: ESC_POS_NUMBERS[id]
   })),
   { id: 'utf-8' as CodepageId, label: LABELS['utf-8'], escPos: null }
 ]
@@ -160,6 +166,11 @@ export const CODEPAGE_DEFINITIONS: readonly CodepageDefinition[] = [
 const DEFINITIONS_BY_ID = new Map<CodepageId, CodepageDefinition>(
   CODEPAGE_DEFINITIONS.map((definition) => [definition.id, definition])
 )
+
+/** Whether a code page id is one we have a definition for. */
+function hasDefinition(id: CodepageId): id is GeneratedCodepageId {
+  return id !== 'utf-8'
+}
 
 export class UnsupportedCodepageError extends Error {
   /** The name that could not be resolved. */
@@ -228,7 +239,8 @@ export function escPosCodepageNumber(
   id: CodepageId,
   numbering: CodepageNumbering = 'rawbt'
 ): number | null {
-  return getCodepageDefinition(id).escPos?.[numbering] ?? null
+  if (!hasDefinition(id)) return null
+  return ESC_POS_NUMBERS[id][numbering]
 }
 
 /** Reverse lookup, memoised: code point -> byte. */

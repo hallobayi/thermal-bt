@@ -11,41 +11,15 @@
  * and every other on-the-wire encoding belongs to the transports, not here.
  */
 
-import {
-  ALIGNMENT,
-  BARCODE,
-  CUT,
-  HRI,
-  PRINT_MODE,
-  QR_EC_LEVEL,
-  QR_MODEL,
-  UNDERLINE,
-  align as cmdAlign,
-  barcode as cmdBarcode,
-  barcodeHeight as cmdBarcodeHeight,
-  barcodeTextPosition as cmdBarcodeTextPosition,
-  barcodeWidth as cmdBarcodeWidth,
-  bold as cmdBold,
-  characterTable as cmdCharacterTable,
-  cut as cmdCut,
-  feed as cmdFeed,
-  feedForm as cmdFeedForm,
-  feedReverse as cmdFeedReverse,
-  initialize as cmdInitialize,
-  newline as cmdNewline,
-  openDrawer as cmdOpenDrawer,
-  printMode as cmdPrintMode,
-  qrcode as cmdQrcode,
-  rasterImage as cmdRasterImage,
-  release as cmdRelease,
-  underline as cmdUnderline,
-  type Alignment,
-  type BarcodeType,
-  type CutMode,
-  type HriPosition,
-  type QrEcLevel,
-  type QrModel,
-  type UnderlineMode
+import * as commands from './commands.ts'
+import type {
+  Alignment,
+  BarcodeType,
+  CutMode,
+  HriPosition,
+  QrEcLevel,
+  QrModel,
+  UnderlineMode
 } from './commands.ts'
 import {
   DEFAULT_CODEPAGE,
@@ -55,7 +29,7 @@ import {
   type CodepageId,
   type CodepageNumbering
 } from './codepages.ts'
-import { wrapText } from '../text/layout.ts'
+import { alignRightIn, fitsOnOneLine, padBetween, wrapText } from '../text/layout.ts'
 
 /**
  * `ESC ! n` presets.
@@ -64,15 +38,15 @@ import { wrapText } from '../text/layout.ts'
  * doubling bits and different printers render the results at different point sizes.
  */
 export const FONT_SIZE = {
-  normal: PRINT_MODE.fontA,
+  normal: commands.PRINT_MODE.fontA,
   /** Condensed font B — narrower characters, more columns per line. */
-  small: PRINT_MODE.fontB,
+  small: commands.PRINT_MODE.fontB,
   /** Double height only. */
-  tall: PRINT_MODE.doubleHeight,
+  tall: commands.PRINT_MODE.doubleHeight,
   /** Double width only. */
-  wide: PRINT_MODE.doubleWidth,
+  wide: commands.PRINT_MODE.doubleWidth,
   /** Both doubled. */
-  large: PRINT_MODE.doubleHeight | PRINT_MODE.doubleWidth
+  large: commands.PRINT_MODE.doubleHeight | commands.PRINT_MODE.doubleWidth
 } as const
 
 export type FontSize = keyof typeof FONT_SIZE
@@ -169,20 +143,20 @@ export class EscPosEncoder {
 
   /** `ESC @` — reset the printer to its power-on defaults. */
   initialize(): this {
-    return this.raw(cmdInitialize())
+    return this.raw(commands.initialize())
   }
 
   /** Select a code page and remember it for subsequent `text()` calls. */
   codepage(id: string): this {
     this.codepageId = resolveCodepage(id)
     const number = escPosCodepageNumber(this.codepageId, this.numbering)
-    if (number !== null) this.raw(cmdCharacterTable(number))
+    if (number !== null) this.raw(commands.characterTable(number))
     return this
   }
 
   /** `FS . ESC t n` with an explicit number, for printers not covered by the named code pages. */
   characterTable(number: number): this {
-    return this.raw(cmdCharacterTable(number))
+    return this.raw(commands.characterTable(number))
   }
 
   // ---------------------------------------------------------------------------------------
@@ -208,7 +182,7 @@ export class EscPosEncoder {
 
   /** `LF`, repeated `count` times. */
   newline(count = 1): this {
-    for (let index = 0; index < count; index++) this.raw(cmdNewline())
+    for (let index = 0; index < count; index++) this.raw(commands.newline())
     return this
   }
 
@@ -223,20 +197,20 @@ export class EscPosEncoder {
   // ---------------------------------------------------------------------------------------
 
   align(mode: Alignment): this {
-    return this.raw(cmdAlign(mode))
+    return this.raw(commands.align(mode))
   }
 
   bold(on = true): this {
-    return this.raw(cmdBold(on))
+    return this.raw(commands.bold(on))
   }
 
-  underline(mode: UnderlineMode = UNDERLINE.single): this {
-    return this.raw(cmdUnderline(mode))
+  underline(mode: UnderlineMode = commands.UNDERLINE.single): this {
+    return this.raw(commands.underline(mode))
   }
 
   /** Apply one of the `FONT_SIZE` presets. */
   fontSize(size: FontSize): this {
-    return this.raw(cmdPrintMode(FONT_SIZE[size]))
+    return this.raw(commands.printMode(FONT_SIZE[size]))
   }
 
   /**
@@ -246,12 +220,12 @@ export class EscPosEncoder {
    * a readable way to build a value.
    */
   printMode(mode: number): this {
-    return this.raw(cmdPrintMode(mode))
+    return this.raw(commands.printMode(mode))
   }
 
   /** Return every formatting attribute to its default. */
   resetFormatting(): this {
-    return this.align('left').bold(false).underline(UNDERLINE.none).fontSize('normal')
+    return this.align('left').bold(false).underline(commands.UNDERLINE.none).fontSize('normal')
   }
 
   // ---------------------------------------------------------------------------------------
@@ -260,32 +234,32 @@ export class EscPosEncoder {
 
   /** `ESC d n` — advance `lines` lines. */
   feed(lines = 1): this {
-    return this.raw(cmdFeed(lines))
+    return this.raw(commands.feed(lines))
   }
 
   /** `FF` — some slip printers need this to let go of the paper. */
   feedForm(): this {
-    return this.raw(cmdFeedForm())
+    return this.raw(commands.feedForm())
   }
 
   /** `ESC q` — release a slip printer's paper. */
   release(): this {
-    return this.raw(cmdRelease())
+    return this.raw(commands.release())
   }
 
   /** `ESC e n` — feed backwards, for slip printers with a reverse motor. */
   feedReverse(lines = 1): this {
-    return this.raw(cmdFeedReverse(lines))
+    return this.raw(commands.feedReverse(lines))
   }
 
   /** `GS V m n` — cut the paper. */
-  cut(mode: CutMode = CUT.full, lines = 3): this {
-    return this.raw(cmdCut(mode, lines))
+  cut(mode: CutMode = commands.CUT.full, lines = 3): this {
+    return this.raw(commands.cut(mode, lines))
   }
 
   /** `ESC p m t1 t2` — kick the cash drawer. */
   openDrawer(pin: 0 | 1 = 0, onTime = 25, offTime = 250): this {
-    return this.raw(cmdOpenDrawer(pin, onTime, offTime))
+    return this.raw(commands.openDrawer(pin, onTime, offTime))
   }
 
   // ---------------------------------------------------------------------------------------
@@ -302,18 +276,20 @@ export class EscPosEncoder {
   barcode(content: string, type: BarcodeType = 'code39', options: BarcodeOptions = {}): this {
     const { bytes } = encodeText(content, options.codepage ?? this.codepageId)
 
-    if (options.height !== undefined) this.raw(cmdBarcodeHeight(options.height))
-    if (options.width !== undefined) this.raw(cmdBarcodeWidth(options.width))
-    if (options.hri !== undefined) this.raw(cmdBarcodeTextPosition(hriValue(options.hri)))
+    if (options.height !== undefined) this.raw(commands.barcodeHeight(options.height))
+    if (options.width !== undefined) this.raw(commands.barcodeWidth(options.width))
+    if (options.hri !== undefined) {
+      this.raw(commands.barcodeTextPosition(hriValue(options.hri)))
+    }
 
-    return this.raw(cmdBarcode([...bytes], type))
+    return this.raw(commands.barcode([...bytes], type))
   }
 
   /** Print a QR code. */
   qrcode(content: string, options: QrcodeOptions = {}): this {
     const { bytes } = encodeText(content, options.codepage ?? this.codepageId)
     return this.raw(
-      cmdQrcode([...bytes], {
+      commands.qrcode([...bytes], {
         ...(options.ec === undefined ? {} : { ec: options.ec }),
         ...(options.moduleSize === undefined ? {} : { moduleSize: options.moduleSize }),
         ...(options.model === undefined ? {} : { model: options.model })
@@ -328,7 +304,7 @@ export class EscPosEncoder {
    * `packRasterRows` produces exactly that from a threshold function.
    */
   image(data: readonly number[] | Uint8Array, widthDots: number, heightDots: number): this {
-    return this.raw(cmdRasterImage([...data], widthDots, heightDots))
+    return this.raw(commands.rasterImage([...data], widthDots, heightDots))
   }
 
   // ---------------------------------------------------------------------------------------
@@ -351,19 +327,18 @@ export class EscPosEncoder {
    * that lines up on one printer and not another is worse than one that always lines up.
    */
   keyValue(label: string, value: string, columns: number): this {
-    const gap = columns - label.length - value.length
-    if (gap >= 1) return this.line(`${label}${' '.repeat(gap)}${value}`)
+    if (fitsOnOneLine(label, value, columns)) return this.line(padBetween(label, value, columns))
 
-    // Too long to sit on one line: put the value underneath, indented to the right.
+    // Too long to sit on one line: put the value underneath, right-aligned.
     this.line(label)
-    return this.line(`${' '.repeat(Math.max(0, columns - value.length))}${value}`)
+    return this.line(alignRightIn(value, columns))
   }
 }
 
 function hriValue(position: HriPosition | 'both'): number {
   // `GS H` takes a bitmask, so "both" is the two flags OR-ed together.
-  if (position === 'both') return HRI.above | HRI.below
-  return HRI[position]
+  if (position === 'both') return commands.HRI.above | commands.HRI.below
+  return commands.HRI[position]
 }
 
 /** Convenience factory, mirroring the original library's `getCurrentDriver()`. */
@@ -371,5 +346,22 @@ export function createEncoder(options?: EscPosEncoderOptions): EscPosEncoder {
   return new EscPosEncoder(options)
 }
 
-export { ALIGNMENT, BARCODE, CUT, HRI, PRINT_MODE, QR_EC_LEVEL, QR_MODEL, UNDERLINE }
-export type { Alignment, BarcodeType, CutMode, HriPosition, QrEcLevel, QrModel, UnderlineMode }
+export {
+  ALIGNMENT,
+  BARCODE,
+  CUT,
+  HRI,
+  PRINT_MODE,
+  QR_EC_LEVEL,
+  QR_MODEL,
+  UNDERLINE
+} from './commands.ts'
+export type {
+  Alignment,
+  BarcodeType,
+  CutMode,
+  HriPosition,
+  QrEcLevel,
+  QrModel,
+  UnderlineMode
+} from './commands.ts'

@@ -11,7 +11,8 @@
  */
 
 import { renderHtml } from '../document/renderHtml.ts'
-import { detectEnvironment, printHtmlInIframe } from './platform.ts'
+import { detectEnvironment } from './platform.ts'
+import { printHtmlInIframe } from './platform.ts'
 import type { PrintRequest, Transport, TransportCapabilities, TransportOutcome } from './types.ts'
 
 export const SYSTEM_PRINT_CAPABILITIES: TransportCapabilities = {

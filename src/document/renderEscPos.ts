@@ -8,6 +8,7 @@
 import { EscPosEncoder } from '../escpos/EscPosEncoder.ts'
 import type { CodepageNumbering } from '../escpos/codepages.ts'
 import { horizontalRule } from '../text/layout.ts'
+import { assertNever } from './exhaustive.ts'
 import type { PrintDocument } from './PrintDocument.ts'
 import type { PrintOperation } from './operations.ts'
 
@@ -138,9 +139,4 @@ function applyOperation(encoder: EscPosEncoder, operation: PrintOperation, colum
     default:
       return assertNever(operation)
   }
-}
-
-/** Compile-time exhaustiveness check. */
-function assertNever(value: never): never {
-  throw new Error(`Unhandled print operation: ${JSON.stringify(value)}`)
 }

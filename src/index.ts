@@ -143,6 +143,8 @@ export { ditherToBits, packRasterRows, thresholdToBits } from './escpos/raster.t
 export {
   alignRightIn,
   centerIn,
+  fitsOnOneLine,
+  gapBetween,
   horizontalRule,
   padBetween,
   paperColumns,
@@ -168,6 +170,8 @@ export {
   percentEscapeBytes,
   detectEnvironment,
   openIntentUri,
+  canUseIntentUris,
+  handOffIntentUri,
   RawBtTransport,
   RawThermalRawTransport,
   RawThermalShareTransport,
@@ -176,19 +180,22 @@ export {
   buildRawThermalRawUri,
   buildRawThermalShareUri,
   RAWBT_PACKAGE,
+  RAWBT_CAPABILITIES,
   RAW_THERMAL_PACKAGE,
   RAW_THERMAL_PRINT_RAW_ACTION,
-  RAW_THERMAL_DATA_EXTRA
+  RAW_THERMAL_DATA_EXTRA,
+  DEFAULT_SHARE_TITLE,
+  RAW_THERMAL_SHARE_CAPABILITIES,
+  RAW_THERMAL_RAW_CAPABILITIES,
+  SYSTEM_PRINT_CAPABILITIES
 } from './transport/index.ts'
 export type {
-  IntentSpec,
-  ParsedIntent
-} from './transport/index.ts'
-export type {
-  Environment,
+  IntentHandoff,
   PrintRequest,
   Transport,
   TransportCapabilities,
   TransportId,
   TransportOutcome
 } from './transport/index.ts'
+export type { Environment } from './transport/platform.ts'
+export type { IntentSpec, ParsedIntent } from './transport/intentUri.ts'

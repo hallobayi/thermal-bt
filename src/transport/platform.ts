@@ -16,6 +16,11 @@ export interface Environment {
   canUseWindowPrint: boolean
 }
 
+/** Whether this browser can plausibly launch an `intent:` URI. */
+export function canUseIntentUris(): boolean {
+  return detectEnvironment().canUseIntentUris
+}
+
 /** Sniff the environment. Safe to call in Node: every global is guarded. */
 export function detectEnvironment(): Environment {
   const navigatorLike = typeof navigator === 'undefined' ? undefined : navigator

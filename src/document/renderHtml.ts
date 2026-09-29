@@ -11,7 +11,9 @@
  * it would if it had been printed as text.
  */
 
+import { fitsOnOneLine } from '../text/layout.ts'
 import { escapeHtml } from '../text/html.ts'
+import { assertNever } from './exhaustive.ts'
 import type { PrintDocument } from './PrintDocument.ts'
 import type { RenderOutput } from './renderEscPos.ts'
 import type { PrintOperation } from './operations.ts'
@@ -122,8 +124,7 @@ export function renderHtml(
         const width = operation.columns ?? columns
         // A real flex row rather than padded spaces: the browser aligns it exactly, and it
         // stays aligned even when the font metrics are not what we assumed.
-        const gap = width - operation.label.length - operation.value.length
-        if (gap >= 1) {
+        if (fitsOnOneLine(operation.label, operation.value, width)) {
           blocks.push(
             `<div style="${style()};display:flex;justify-content:space-between">` +
               `<span>${escapeHtml(operation.label)}</span><span>${escapeHtml(operation.value)}</span></div>`
@@ -171,27 +172,23 @@ export function renderHtml(
         warnings.add('Raw ESC/POS bytes are dropped: this path rasterises markup.')
         break
 
-      default:
-        assertNever(operation)
-    }
+    default:
+      assertNever(operation)
   }
-
-  const html = [
-    '<!doctype html>',
-    '<html><head><meta charset="utf-8">',
-    '<style>',
-    '  @page { margin: 0; }',
-    '  html, body { margin: 0; padding: 0; }',
-    `  body { width: ${columns}ch; font-family: "Courier New", ui-monospace, monospace; line-height: 1.2; color: #000; background: #fff; }`,
-    '</style>',
-    '</head><body>',
-    ...blocks,
-    '</body></html>'
-  ].join('\n')
-
-  return { output: html, warnings: [...warnings] }
 }
 
-function assertNever(value: never): never {
-  throw new Error(`Unhandled print operation: ${JSON.stringify(value)}`)
+const html = [
+  '<!doctype html>',
+  '<html><head><meta charset="utf-8">',
+  '<style>',
+  '  @page { margin: 0; }',
+  '  html, body { margin: 0; padding: 0; }',
+  `  body { width: ${columns}ch; font-family: "Courier New", ui-monospace, monospace; line-height: 1.2; color: #000; background: #fff; }`,
+  '</style>',
+  '</head><body>',
+  ...blocks,
+  '</body></html>'
+].join('\n')
+
+return { output: html, warnings: [...warnings] }
 }

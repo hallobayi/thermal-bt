@@ -256,7 +256,7 @@ export class PrintDocument {
 
   /** The operations, as a plain array, for a renderer or a test to walk. */
   toOperations(): PrintOperation[] {
-    return [...this.operations]
+    return [...this.ops]
   }
 }
 

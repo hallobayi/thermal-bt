@@ -63,7 +63,7 @@ export function defaultTransport(): Transport {
   return first
 }
 
-export { RawBtTransport, RAWBT_PACKAGE, buildRawBtUri } from './rawbt.ts'
+export { RawBtTransport, RAWBT_PACKAGE, RAWBT_CAPABILITIES, buildRawBtUri } from './rawbt.ts'
 export {
   RawThermalRawTransport,
   RawThermalShareTransport,
@@ -71,13 +71,21 @@ export {
   RAW_THERMAL_PRINT_RAW_ACTION,
   RAW_THERMAL_DATA_EXTRA,
   DEFAULT_SHARE_TITLE,
+  RAW_THERMAL_SHARE_CAPABILITIES,
+  RAW_THERMAL_RAW_CAPABILITIES,
   buildRawThermalRawUri,
   buildRawThermalShareUri
 } from './rawThermal.ts'
-export { SystemPrintTransport } from './systemPrint.ts'
-export * from './types.ts'
+export { SystemPrintTransport, SYSTEM_PRINT_CAPABILITIES } from './systemPrint.ts'
+export type {
+  PrintRequest,
+  Transport,
+  TransportCapabilities,
+  TransportId,
+  TransportOutcome
+} from './types.ts'
 export { buildIntentUri, escapeIntentValue, parseIntentUri } from './intentUri.ts'
-export type { IntentSpec, ParsedIntent } from './intentUri.ts'
 export { base64ToBytes, bytesToBase64, percentEscapeBytes } from './encoding.ts'
-export { detectEnvironment, openIntentUri } from './platform.ts'
-export type { Environment } from './platform.ts'
+export { detectEnvironment, openIntentUri, canUseIntentUris } from './platform.ts'
+export { handOffIntentUri } from './intentHandoff.ts'
+export type { IntentHandoff } from './intentHandoff.ts'

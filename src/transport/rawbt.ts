@@ -21,7 +21,8 @@
 import { renderEscPos } from '../document/renderEscPos.ts'
 import { percentEscapeBytes } from './encoding.ts'
 import { escapeIntentValue } from './intentUri.ts'
-import { detectEnvironment, openIntentUri } from './platform.ts'
+import { handOffIntentUri } from './intentHandoff.ts'
+import { canUseIntentUris } from './platform.ts'
 import type { PrintRequest, Transport, TransportCapabilities, TransportOutcome } from './types.ts'
 
 export const RAWBT_PACKAGE = 'ru.a402d.rawbtprinter'
@@ -69,7 +70,7 @@ export class RawBtTransport implements Transport {
   readonly capabilities = RAWBT_CAPABILITIES
 
   isSupported(): boolean {
-    return detectEnvironment().canUseIntentUris
+    return canUseIntentUris()
   }
 
   async send(request: PrintRequest): Promise<TransportOutcome> {
@@ -77,24 +78,11 @@ export class RawBtTransport implements Transport {
       columns: request.columns
     })
 
-    const uri = buildRawBtUri(bytes, request.fallbackUrl)
-
-    try {
-      openIntentUri(uri)
-    } catch (error) {
-      return {
-        ok: false,
-        message: error instanceof Error ? error.message : 'Could not open RawBT',
-        warnings,
-        uri
-      }
-    }
-
-    return {
-      ok: true,
-      message: 'Sent to RawBT. It should print immediately.',
+    return handOffIntentUri({
+      uri: buildRawBtUri(bytes, request.fallbackUrl),
       warnings,
-      uri
-    }
+      successMessage: 'Sent to RawBT. It should print immediately.',
+      failureMessage: 'Could not open RawBT'
+    })
   }
 }

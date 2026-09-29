@@ -50,11 +50,27 @@ export function wrapText(text: string, columns: number): string[] {
   return lines
 }
 
+/**
+ * Columns left over when `left` and `right` share a single line. Negative when they do not fit.
+ *
+ * The ESC/POS encoder and both text renderers each need this number to choose between one line
+ * and two, and each used to compute it separately. Three copies of one subtraction is three
+ * chances to disagree about what "does not fit" means, which shows up as a receipt whose total
+ * sits one column off on one path and not the others.
+ */
+export function gapBetween(left: string, right: string, columns: number): number {
+  return columns - left.length - right.length
+}
+
+/** Whether `left` and `right` fit on one line with at least one column between them. */
+export function fitsOnOneLine(left: string, right: string, columns: number): boolean {
+  return gapBetween(left, right, columns) >= 1
+}
+
 /** Pad a line to the full width and place `right` against the right edge. */
 export function padBetween(left: string, right: string, columns: number): string {
-  const gap = columns - left.length - right.length
-  if (gap <= 0) return `${left}${right}`
-  return `${left}${' '.repeat(gap)}${right}`
+  if (!fitsOnOneLine(left, right, columns)) return `${left}${right}`
+  return `${left}${' '.repeat(gapBetween(left, right, columns))}${right}`
 }
 
 export function centerIn(text: string, columns: number): string {

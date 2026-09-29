@@ -12,8 +12,17 @@
  * rendered down to text instead — and the honest thing is to say which parts of it were dropped.
  */
 
-import { alignRightIn, centerIn, horizontalRule, stripControlCharacters, wrapText } from '../text/layout.ts'
+import {
+  alignRightIn,
+  centerIn,
+  fitsOnOneLine,
+  horizontalRule,
+  padBetween,
+  stripControlCharacters,
+  wrapText
+} from '../text/layout.ts'
 import type { Alignment } from '../escpos/commands.ts'
+import { assertNever } from './exhaustive.ts'
 import type { PrintDocument } from './PrintDocument.ts'
 import type { RenderOutput } from './renderEscPos.ts'
 import type { PrintOperation } from './operations.ts'
@@ -178,11 +187,7 @@ function alignLine(line: string, align: Alignment, columns: number): string {
 }
 
 function padKeyValue(label: string, value: string, columns: number): string {
-  const gap = columns - label.length - value.length
-  if (gap >= 1) return `${label}${' '.repeat(gap)}${value}`
+  if (fitsOnOneLine(label, value, columns)) return padBetween(label, value, columns)
+  // Too long for one line: the value goes underneath, right-aligned.
   return `${label}\n${alignRightIn(value, columns)}`
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled print operation: ${JSON.stringify(value)}`)
 }
