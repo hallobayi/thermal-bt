@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CI4 + RawThermal JS</title>
+</head>
+<body>
+  <button onclick="cetakNota('INV001')">Cetak Nota</button>
+
+  <script src="/assets/js/rawthermal.js"></script>
+  <script>
+    function cetakNota(noInvoice) {
+      var url =
+        window.location.origin +
+        "/kasir/generateNotaBayar?no_invoice=" +
+        encodeURIComponent(noInvoice);
+
+      RawThermal.printUrl(url, {
+        packageName: "com.rawthermal.app"
+      });
+    }
+  </script>
+</body>
+</html>
