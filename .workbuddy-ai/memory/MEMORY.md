@@ -8,7 +8,12 @@ Berbeda dari **RawBT** yang punya pola URI `rawbt:` — Raw Thermal tidak punya,
 jadi Base64 ESC/POS memang tidak didukung (dijadikan error yang jelas, bukan
 gagal senyap).
 
-Repo: `github.com/mdestafadilah/thermal-bt` (private).
+Repo: remote `origin` = `github.com/hallobayi/thermal-bt`, branch `main`, dan
+repo itu **publik**. Catatan lama yang menulis `mdestafadilah/thermal-bt`
+(private) **salah** — dikoreksi 2026-10-08 lewat `git remote -v` + `gh repo view`.
+Konsekuensinya: `.workbuddy-ai/memory/` ikut ter-commit dan ikut terlihat
+publik (sudah begitu sejak commit `d32e26b`), jadi jangan pernah menulis
+kredensial, token, atau data pelanggan ke dalamnya.
 
 ## Arsitektur
 
