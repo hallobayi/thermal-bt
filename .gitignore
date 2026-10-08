@@ -1,0 +1,6 @@
+# Catatan kerja asisten (.workbuddy-ai) bersifat internal — jangan di-publish.
+# Foldernya tetap ada di disk; hanya dikeluarkan dari git.
+.workbuddy-ai/
+
+# Proyek ini nol dependensi, tetapi jaga-jaga kalau `npm install` dijalankan.
+node_modules/
