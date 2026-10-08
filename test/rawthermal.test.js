@@ -22,14 +22,38 @@ const dom = require(path.join(SRC, "dom.js"));
 
 const BASE = "https://kasir.example.com/app/index.html";
 
-/** Window tiruan: cukup untuk menguji dom.js tanpa browser asli. */
+/**
+ * Window tiruan: cukup untuk menguji dom.js tanpa browser asli.
+ *
+ * `open` sengaja meniru perilaku browser: kalau ada string features (mis.
+ * "noopener") hasilnya `null`. Itu yang membuat versi lama salah membaca
+ * tab yang berhasil terbuka sebagai kegagalan.
+ */
 function fakeWindow(options = {}) {
-  const calls = { open: [], revoked: [], timers: [] };
+  const calls = { open: [], revoked: [], timers: [], clicked: [] };
+
+  const makeNode = () => ({
+    style: {},
+    set href(v) { this._href = v; },
+    get href() { return this._href; },
+    click() { calls.clicked.push(this._href); },
+    parentNode: null
+  });
+
+  const makeHost = () => ({
+    appendChild(node) { node.parentNode = this; calls.appended = node; },
+    removeChild(node) { node.parentNode = null; }
+  });
+
   const win = {
     location: { href: BASE },
-    navigator: { userAgent: options.userAgent || "Mozilla/5.0 (Windows NT 10.0)" },
+    navigator: {
+      userAgent: options.userAgent || "Mozilla/5.0 (Windows NT 10.0)",
+      maxTouchPoints: options.maxTouchPoints || 0
+    },
     open(url, target, features) {
       calls.open.push({ url, target, features });
+      if (features) return null;
       return options.openReturns === null ? null : {};
     },
     URL: {
@@ -45,29 +69,42 @@ function fakeWindow(options = {}) {
     setTimeout(fn, delay) {
       calls.timers.push({ delay });
       fn();
-    },
-    document: {
-      createElement: () => ({
-        style: {},
-        set href(v) { this._href = v; },
-        get href() { return this._href; },
-        click() { calls.clicked = this._href; },
-        parentNode: null
-      }),
-      body: {
-        appendChild(node) { node.parentNode = this; calls.appended = node; },
-        removeChild(node) { node.parentNode = null; }
-      }
     }
   };
+
+  if (options.touchEvents) win.ontouchstart = null;
+  if (options.maxTouchPoints) win.maxTouchPoints = options.maxTouchPoints;
+
+  if (!options.noDocument) {
+    win.document = {
+      createElement: makeNode,
+      body: makeHost(),
+      documentElement: makeHost()
+    };
+    // Sebagian WebView hanya punya documentElement (skrip jalan di <head>).
+    if (options.bodyless) delete win.document.body;
+  }
+
   return { win, calls };
 }
+
+// --- config -----------------------------------------------------------------
 
 test("config: default terisi saat opsi kosong", () => {
   const opts = config.withDefaults();
   assert.equal(opts.packageName, "com.rawthermal.app");
   assert.equal(opts.fallbackUrl, null);
   assert.equal(opts.openInNewTab, true);
+  assert.equal(opts.autoPrint, true);
+});
+
+test("config: MODES dipakai sebagai satu-satunya sumber string mode", () => {
+  assert.deepEqual(Object.values(config.MODES).sort(), [
+    "android-intent",
+    "browser",
+    "browser-text",
+    "fallback"
+  ]);
 });
 
 test("config: opsi asing tidak ikut terbawa", () => {
@@ -92,6 +129,8 @@ test("config: withDefaults tidak memutasi opsi pemanggil", () => {
   assert.deepEqual(input, { packageName: "com.x" });
 });
 
+// --- platform ---------------------------------------------------------------
+
 test("platform: mendeteksi Android dari User-Agent", () => {
   const { win } = fakeWindow({
     userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36"
@@ -110,15 +149,49 @@ test("platform: userAgentData.platform Android dikenali", () => {
   assert.equal(platform.isAndroid(win), true);
 });
 
+test("platform: tablet Android mode 'situs desktop' tetap dikenali", () => {
+  // UA desktop Android tidak menyebut "Android" sama sekali; sisa sinyalnya
+  // hanya Linux + layar sentuh. Ini kasus yang paling sering bikin cetak
+  // gagal di tablet.
+  const { win } = fakeWindow({
+    userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    maxTouchPoints: 5
+  });
+  assert.equal(platform.isAndroid(win), true);
+});
+
+test("platform: tablet Android lama tanpa maxTouchPoints tetap dikenali", () => {
+  const { win } = fakeWindow({
+    userAgent: "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36",
+    touchEvents: true
+  });
+  assert.equal(platform.isAndroid(win), true);
+});
+
+test("platform: Linux desktop tanpa layar sentuh bukan Android", () => {
+  const { win } = fakeWindow({ userAgent: "Mozilla/5.0 (X11; Linux x86_64) Firefox/121" });
+  assert.equal(platform.isAndroid(win), false);
+});
+
+test("platform: laptop Windows layar sentuh bukan Android", () => {
+  const { win } = fakeWindow({
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    maxTouchPoints: 10
+  });
+  assert.equal(platform.isAndroid(win), false);
+});
+
 test("platform: tanpa window tidak melempar", () => {
   assert.equal(platform.isAndroid(null), false);
 });
+
+// --- intent -----------------------------------------------------------------
 
 test("intent: membentuk intent:// lengkap dengan query dan package", () => {
   const built = intent.buildViewIntent(
     "/kasir/generateNotaBayar?no_invoice=INV001",
     "com.rawthermal.app",
-    BASE
+    { base: BASE }
   );
   assert.equal(
     built,
@@ -129,23 +202,43 @@ test("intent: membentuk intent:// lengkap dengan query dan package", () => {
 });
 
 test("intent: mempertahankan hash dan skema http", () => {
-  const built = intent.buildViewIntent("http://localhost:8080/nota.pdf#p=1", "com.x", BASE);
+  const built = intent.buildViewIntent("http://localhost:8080/nota.pdf#p=1", "com.x", {
+    base: BASE
+  });
   assert.match(built, /^intent:\/\/localhost:8080\/nota\.pdf#p=1#Intent;scheme=http;/);
 });
 
+test("intent: browser fallback dipasang ter-encode supaya tablet tanpa aplikasi tetap dapat PDF", () => {
+  const built = intent.buildViewIntent("/kasir/nota.pdf", "com.rawthermal.app", {
+    base: BASE,
+    browserFallbackUrl: "https://kasir.example.com/kasir/nota.pdf"
+  });
+  assert.match(
+    built,
+    /;S\.browser_fallback_url=https%3A%2F%2Fkasir\.example\.com%2Fkasir%2Fnota\.pdf;end$/
+  );
+});
+
+test("intent: tanpa browserFallbackUrl, parameter fallback tidak ikut", () => {
+  const built = intent.buildViewIntent("/kasir/nota.pdf", "com.rawthermal.app", { base: BASE });
+  assert.equal(built.includes("S.browser_fallback_url"), false);
+});
+
 test("intent: url kosong ditolak dengan pesan jelas", () => {
-  assert.throws(() => intent.buildViewIntent("", "com.x", BASE), /url wajib diisi/);
-  assert.throws(() => intent.buildViewIntent(null, "com.x", BASE), /url wajib diisi/);
+  assert.throws(() => intent.buildViewIntent("", "com.x", { base: BASE }), /url wajib diisi/);
+  assert.throws(() => intent.buildViewIntent(null, "com.x", { base: BASE }), /url wajib diisi/);
 });
 
 test("intent: packageName kosong ditolak", () => {
-  assert.throws(() => intent.buildViewIntent("/a.pdf", "", BASE), /packageName/);
+  assert.throws(() => intent.buildViewIntent("/a.pdf", "", { base: BASE }), /packageName/);
 });
+
+// --- text -------------------------------------------------------------------
 
 test("text: escape HTML mencegah injeksi lewat isi nota", () => {
   const html = text.buildTextDocument("<script>alert(1)</script> & co", "Nota");
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; co/);
-  assert.equal(html.includes("<script>"), false);
+  assert.equal(html.includes("<script>alert"), false);
 });
 
 test("text: dokumen memakai pre-wrap agar kolom struk sejajar", () => {
@@ -153,11 +246,50 @@ test("text: dokumen memakai pre-wrap agar kolom struk sejajar", () => {
   assert.match(html, /white-space:pre-wrap/);
 });
 
-test("dom: openUrl melaporkan popup-blocker, tidak menelan kegagalan", () => {
-  const { win, calls } = fakeWindow({ openReturns: null });
+test("text: dokumen membawa viewport supaya tidak diperkecil di tablet", () => {
+  const html = text.buildTextDocument("Total   10.000");
+  assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
+  assert.match(html, /text-size-adjust:100%/);
+});
+
+test("text: dokumen menyiapkan ukuran kertas 58mm untuk dialog cetak Android", () => {
+  const html = text.buildTextDocument("Total   10.000");
+  assert.match(html, /@page\{size:58mm auto;margin:4mm\}/);
+});
+
+test("text: autoPrint aktif secara default, bisa dimatikan", () => {
+  assert.match(text.buildTextDocument("x"), /window\.print\(\)/);
+  assert.equal(text.buildTextDocument("x", "Nota", { autoPrint: false }).includes("<script>"), false);
+});
+
+// --- dom --------------------------------------------------------------------
+
+test("dom: openUrl melaporkan kegagalan kalau diblokir dan tidak ada document", () => {
+  const { win, calls } = fakeWindow({ openReturns: null, noDocument: true });
   const result = dom.openUrl("https://x.test/a.pdf", { openInNewTab: true }, win);
   assert.equal(result.opened, false);
+  assert.equal(result.reason, "blocked");
   assert.equal(calls.open[0].target, "_blank");
+});
+
+test("dom: popup yang diblokir dicoba lagi lewat anchor, bukan langsung menyerah", () => {
+  const { win, calls } = fakeWindow({ openReturns: null });
+  const result = dom.openUrl("https://x.test/a.pdf", { openInNewTab: true }, win);
+
+  assert.equal(result.opened, true);
+  assert.equal(result.via, "anchor");
+  assert.deepEqual(calls.clicked, ["https://x.test/a.pdf"]);
+});
+
+test("dom: window.open dipanggil tanpa features 'noopener'", () => {
+  // Dengan features "noopener", browser mengembalikan null walau tab berhasil
+  // dibuka — versi lama melaporkan ok:false untuk keberhasilan.
+  const { win, calls } = fakeWindow();
+  const result = dom.openUrl("https://x.test/a.pdf", { openInNewTab: true }, win);
+
+  assert.equal(result.opened, true);
+  assert.equal(result.via, "window");
+  assert.equal(calls.open[0].features, undefined);
 });
 
 test("dom: openInNewTab=false memakai tab yang sama", () => {
@@ -170,8 +302,23 @@ test("dom: clickIntent mengklik anchor intent lalu membuangnya dari DOM", () => 
   const { win, calls } = fakeWindow();
   const ok = dom.clickIntent("intent://kasir.example.com/a.pdf#Intent;end", win);
   assert.equal(ok, true);
-  assert.match(calls.clicked, /^intent:\/\//);
+  assert.match(calls.clicked[0], /^intent:\/\//);
   assert.equal(calls.appended.parentNode, null, "anchor harus dilepas kembali");
+});
+
+test("dom: anchor intent diletakkan di luar layar, bukan display:none", () => {
+  // WebView Android lama tidak menjalankan klik pada elemen display:none.
+  const { win, calls } = fakeWindow();
+  dom.clickIntent("intent://kasir.example.com/a.pdf#Intent;end", win);
+  assert.equal(calls.appended.style.display, undefined);
+  assert.equal(calls.appended.style.position, "fixed");
+  assert.equal(calls.appended.style.left, "-9999px");
+});
+
+test("dom: clickIntent tetap jalan kalau document.body belum ada", () => {
+  const { win, calls } = fakeWindow({ bodyless: true });
+  assert.equal(dom.clickIntent("intent://kasir.example.com/a.pdf#Intent;end", win), true);
+  assert.match(calls.clicked[0], /^intent:\/\//);
 });
 
 test("dom: openTextDocument melepas object URL (perbaikan kebocoran)", () => {

@@ -18,48 +18,71 @@
   var MIME_PDF = "application/pdf";
   var ACTION_VIEW = "android.intent.action.VIEW";
 
-  function absoluteUrl(url, base) {
-    var resolvedBase =
-      base || (typeof window !== "undefined" ? window.location.href : undefined);
-    return new URL(url, resolvedBase).href;
+  /**
+   * Parameter khusus Chrome for Android: kalau tidak ada aplikasi yang bisa
+   * menangani Intent (mis. Raw Thermal belum terpasang di tablet), Chrome
+   * membuka URL ini alih-alih menampilkan "aplikasi tidak ditemukan".
+   * Tanpa ini, kegagalan di tablet terjadi tanpa jejak apa pun di layar.
+   */
+  var BROWSER_FALLBACK_PARAM = "S.browser_fallback_url";
+
+  function currentLocation() {
+    return typeof window !== "undefined" ? window.location.href : undefined;
   }
 
   function toAbsoluteUrl(url, base) {
     if (typeof url !== "string" || url.trim() === "") {
       throw new Error("RawThermal: url wajib diisi dan berupa string.");
     }
-    return absoluteUrl(url.trim(), base);
+    return new URL(url.trim(), base || currentLocation()).href;
+  }
+
+  /**
+   * Susun daftar parameter Intent. `scheme` dan `package` wajib, sedangkan
+   * fallback hanya ikut kalau pemanggil menyediakannya.
+   */
+  function buildIntentParams(parsedUrl, packageName, browserFallbackUrl) {
+    var params = [
+      "scheme=" + parsedUrl.protocol.replace(":", ""),
+      "action=" + ACTION_VIEW,
+      "type=" + MIME_PDF,
+      "package=" + packageName
+    ];
+
+    if (browserFallbackUrl) {
+      params.push(BROWSER_FALLBACK_PARAM + "=" + encodeURIComponent(browserFallbackUrl));
+    }
+    return params;
   }
 
   /**
    * Bangun string `intent://` untuk membuka PDF di package Raw Thermal.
    * Format mengikuti skema Android Intent URI (Chrome for Android).
+   *
+   * @param {string} url        URL PDF, boleh relatif.
+   * @param {string} packageName Package aplikasi target.
+   * @param {object} [ctx]      `{ base, browserFallbackUrl }`. `base` hanya
+   *                            dipakai saat tidak ada window (Node/uji).
    */
-  function buildViewIntent(url, packageName, base) {
+  function buildViewIntent(url, packageName, ctx) {
     if (!packageName) {
       throw new Error("RawThermal: packageName wajib diisi.");
     }
 
-    var parsed = new URL(toAbsoluteUrl(url, base));
+    var context = ctx || {};
+    var parsed = new URL(toAbsoluteUrl(url, context.base));
+    var target =
+      parsed.host + parsed.pathname + (parsed.search || "") + (parsed.hash || "");
 
-    return (
-      "intent://" +
-      parsed.host +
-      parsed.pathname +
-      (parsed.search || "") +
-      (parsed.hash || "") +
-      "#Intent;" +
-      "scheme=" + parsed.protocol.replace(":", "") + ";" +
-      "action=" + ACTION_VIEW + ";" +
-      "type=" + MIME_PDF + ";" +
-      "package=" + packageName + ";" +
-      "end"
-    );
+    var params = buildIntentParams(parsed, packageName, context.browserFallbackUrl);
+
+    return "intent://" + target + "#Intent;" + params.join(";") + ";end";
   }
 
   return {
     MIME_PDF: MIME_PDF,
     ACTION_VIEW: ACTION_VIEW,
+    BROWSER_FALLBACK_PARAM: BROWSER_FALLBACK_PARAM,
     toAbsoluteUrl: toAbsoluteUrl,
     buildViewIntent: buildViewIntent
   };

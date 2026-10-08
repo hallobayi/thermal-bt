@@ -17,8 +17,13 @@ const vm = require("node:vm");
 const DIST = path.join(__dirname, "..", "dist");
 const BUNDLE = path.join(DIST, "rawthermal.js");
 
-function fakeBrowser(userAgent) {
-  const calls = { open: [], clicked: [], revoked: [] };
+/**
+ * `overrides.win` / `overrides.navigator` dipakai untuk meniru perangkat
+ * tertentu — mis. tablet Android mode "situs desktop" yang hanya bisa
+ * dikenali dari maxTouchPoints.
+ */
+function fakeBrowser(userAgent, overrides = {}) {
+  const calls = { open: [], clicked: [], revoked: [], blobs: [] };
   const win = {
     location: { href: "https://kasir.example.com/app/index.html" },
     navigator: { userAgent: userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64)" },
@@ -31,6 +36,7 @@ function fakeBrowser(userAgent) {
     }),
     Blob: class Blob {
       constructor(parts, opts) {
+        calls.blobs.push(parts[0]);
         this.parts = parts;
         this.type = opts && opts.type;
       }
@@ -54,6 +60,9 @@ function fakeBrowser(userAgent) {
       }
     }
   };
+
+  Object.assign(win, overrides.win || {});
+  Object.assign(win.navigator, overrides.navigator || {});
   win.window = win;
   return { win, calls };
 }
@@ -66,9 +75,9 @@ function fakeBrowser(userAgent) {
  * worden gelezen — anders zie je alleen `undefined` en lijk je een bug te
  * hebben die er niet is.
  */
-function loadBundle(userAgent) {
+function loadBundle(userAgent, overrides = {}) {
   const source = fs.readFileSync(BUNDLE, "utf8");
-  const { win, calls } = fakeBrowser(userAgent);
+  const { win, calls } = fakeBrowser(userAgent, overrides);
   const context = vm.createContext(win);
 
   vm.runInContext(source, context, { filename: "rawthermal.js" });
@@ -89,11 +98,12 @@ test("bundel: dist/rawthermal.js ada dan API publik lengkap", () => {
     }
   );
   assert.equal(typeof RawThermal.version, "string");
+  assert.equal(typeof RawThermal.MODES, "object");
 });
 
 test("bundel: tidak membocorkan nama internal ke window", () => {
   const { win } = loadBundle();
-  ["DEFAULTS", "withDefaults", "buildViewIntent", "escapeHtml"].forEach((name) => {
+  ["DEFAULTS", "withDefaults", "buildViewIntent", "escapeHtml", "MODES"].forEach((name) => {
     assert.equal(name in win, false, `${name} bocor menjadi global`);
   });
 });
@@ -105,17 +115,41 @@ test("bundel: Android memicu intent VIEW ke package Raw Thermal", () => {
   const result = RawThermal.printUrl("/kasir/generateNotaBayar?no_invoice=INV001");
 
   assert.equal(result.ok, true);
-  assert.equal(result.mode, "android-intent");
+  assert.equal(result.mode, RawThermal.MODES.ANDROID_INTENT);
   assert.match(result.intent, /^intent:\/\/kasir\.example\.com\/kasir\/generateNotaBayar\?no_invoice=INV001#Intent;/);
-  assert.match(result.intent, /package=com\.rawthermal\.app;end$/);
+  assert.match(
+    result.intent,
+    /;package=com\.rawthermal\.app;S\.browser_fallback_url=https%3A%2F%2Fkasir\.example\.com%2Fkasir%2FgenerateNotaBayar%3Fno_invoice%3DINV001;end$/
+  );
   assert.equal(calls.clicked.length, 1, "anchor intent harus diklik sekali");
+});
+
+test("bundel: tablet Android mode 'situs desktop' tetap memakai jalur Intent", () => {
+  const { RawThermal } = loadBundle(
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    { navigator: { maxTouchPoints: 5 } }
+  );
+  const result = RawThermal.printUrl("/kasir/nota.pdf");
+
+  assert.equal(result.mode, RawThermal.MODES.ANDROID_INTENT);
+  assert.match(result.intent, /^intent:\/\//);
+});
+
+test("bundel: fallbackUrl dipakai sebagai browser fallback Intent saat Android", () => {
+  const { RawThermal } = loadBundle("Mozilla/5.0 (Linux; Android 14; Pixel 8)");
+  const result = RawThermal.printUrl("/kasir/nota.pdf", { fallbackUrl: "/cetak/fallback" });
+
+  assert.match(
+    result.intent,
+    /;S\.browser_fallback_url=https%3A%2F%2Fkasir\.example\.com%2Fcetak%2Ffallback;end$/
+  );
 });
 
 test("bundel: non-Android membuka PDF di tab baru", () => {
   const { RawThermal, calls } = loadBundle("Mozilla/5.0 (Windows NT 10.0; Win64)");
   const result = RawThermal.printUrl("/kasir/nota.pdf");
 
-  assert.equal(result.mode, "browser");
+  assert.equal(result.mode, RawThermal.MODES.BROWSER);
   assert.equal(calls.open[0].target, "_blank");
   assert.equal(calls.open[0].url, "https://kasir.example.com/kasir/nota.pdf");
 });
@@ -124,16 +158,16 @@ test("bundel: fallbackUrl dipakai saat bukan Android", () => {
   const { RawThermal, calls } = loadBundle("Mozilla/5.0 (Windows NT 10.0; Win64)");
   const result = RawThermal.printUrl("/kasir/nota.pdf", { fallbackUrl: "/cetak/fallback" });
 
-  assert.equal(result.mode, "fallback");
+  assert.equal(result.mode, RawThermal.MODES.FALLBACK);
   assert.equal(calls.open[0].url, "https://kasir.example.com/cetak/fallback");
 });
 
 test("bundel: print() menerima string, { url }, dan { pdfUrl }", () => {
   const { RawThermal, calls } = loadBundle("Mozilla/5.0 (Windows NT 10.0; Win64)");
 
-  assert.equal(RawThermal.print("/kasir/a.pdf").mode, "browser");
-  assert.equal(RawThermal.print({ url: "/kasir/b.pdf" }).mode, "browser");
-  assert.equal(RawThermal.print({ pdfUrl: "/kasir/c.pdf" }).mode, "browser");
+  assert.equal(RawThermal.print("/kasir/a.pdf").mode, RawThermal.MODES.BROWSER);
+  assert.equal(RawThermal.print({ url: "/kasir/b.pdf" }).mode, RawThermal.MODES.BROWSER);
+  assert.equal(RawThermal.print({ pdfUrl: "/kasir/c.pdf" }).mode, RawThermal.MODES.BROWSER);
   assert.equal(calls.open.length, 3);
   assert.equal(calls.open[1].url, "https://kasir.example.com/kasir/b.pdf");
 });
@@ -155,7 +189,7 @@ test("bundel: buildViewIntent berguna untuk debugging tanpa memicu Intent", () =
   );
   const built = RawThermal.buildViewIntent("/kasir/nota.pdf", { packageName: "com.custom.app" });
 
-  assert.match(built, /package=com\.custom\.app;end$/);
+  assert.match(built, /;package=com\.custom\.app;S\.browser_fallback_url=[^;]+;end$/);
   assert.equal(calls.clicked.length, 0, "tidak boleh ada Intent yang dipicu");
 });
 
@@ -163,9 +197,20 @@ test("bundel: printText membuka dokumen dan melepas object URL", () => {
   const { RawThermal, calls } = loadBundle("Mozilla/5.0 (Windows NT 10.0; Win64)");
   const result = RawThermal.printText("Total  10.000", { openInNewTab: true });
 
-  assert.equal(result.mode, "browser");
+  assert.equal(result.mode, RawThermal.MODES.BROWSER);
   assert.equal(result.objectUrl, "blob:https://kasir.example.com/xyz");
   assert.deepEqual(calls.revoked, ["blob:https://kasir.example.com/xyz"]);
+});
+
+test("bundel: dokumen printText siap dicetak dari tablet Android", () => {
+  const { RawThermal, calls } = loadBundle("Mozilla/5.0 (Linux; Android 14; Pixel 8)");
+  const result = RawThermal.printText("Total  10.000");
+
+  const html = calls.blobs[0];
+  assert.equal(result.mode, RawThermal.MODES.BROWSER_TEXT);
+  assert.match(html, /<meta name="viewport"/);
+  assert.match(html, /@page\{size:58mm auto/);
+  assert.match(html, /window\.print\(\)/);
 });
 
 test("bundel: dist/rawthermal.min.js juga bisa dimuat", () => {
@@ -186,7 +231,7 @@ test("bundel: dist/rawthermal.cjs bisa di-require Node", () => {
 
   const RawThermal = require(cjsPath);
   assert.equal(typeof RawThermal.isAndroid, "function");
-  assert.equal(RawThermal.version, "1.1.0");
+  assert.equal(RawThermal.version, "1.2.0");
 
   // Di Node tidak ada window.location, jadi base harus diberikan eksplisit.
   // URL relatif memang tidak bisa diresolusi di luar browser — itu perilaku
@@ -195,5 +240,5 @@ test("bundel: dist/rawthermal.cjs bisa di-require Node", () => {
     "https://kasir.example.com/kasir/nota.pdf"
   );
   assert.match(built, /^intent:\/\/kasir\.example\.com\/kasir\/nota\.pdf#Intent;/);
-  assert.match(built, /package=com\.rawthermal\.app;end$/);
+  assert.match(built, /;package=com\.rawthermal\.app;S\.browser_fallback_url=[^;]+;end$/);
 });

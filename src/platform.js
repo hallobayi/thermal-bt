@@ -15,21 +15,44 @@
   /* @body-start */
   "use strict";
 
+  var ANDROID = /android/i;
+  var LINUX = /\blinux\b/i;
+  // OS desktop yang juga memakai kernel Linux; jangan sampai ikut tertangkap
+  // oleh cabang "Linux + layar sentuh" di bawah.
+  var NON_ANDROID_DESKTOP = /windows|macintosh|cros/i;
+
+  function getWindow(win) {
+    return win || (typeof window !== "undefined" ? window : null);
+  }
+
+  /**
+   * Tablet Android sering mengirim UA desktop ("X11; Linux x86_64") ketika
+   * "Situs desktop" diaktifkan, jadi kemampuan sentuh adalah satu-satunya
+   * sinyal yang tersisa. `maxTouchPoints` dipakai lebih dulu karena tetap
+   * tersedia di WebView yang tidak mengekspos `ontouchstart` di window.
+   */
+  function hasTouch(scope) {
+    if (!scope) return false;
+    if (scope.navigator && scope.navigator.maxTouchPoints > 0) return true;
+    return "ontouchstart" in scope;
+  }
+
+  /**
+   * Catatan penting untuk tablet: `navigator.userAgentData.mobile` bernilai
+   * `false` di tablet Android. Jangan pernah memakainya untuk menolak
+   * perangkat — tablet akan ikut tersingkir.
+   */
   function isAndroid(win) {
-    var scope = win || (typeof window !== "undefined" ? window : null);
+    var scope = getWindow(win);
     if (!scope || !scope.navigator) return false;
 
     var ua = scope.navigator.userAgent || "";
     var uaData = scope.navigator.userAgentData;
 
-    if (/android/i.test(ua)) return true;
-    if (uaData && /android/i.test(uaData.platform || "")) return true;
+    if (ANDROID.test(ua)) return true;
+    if (uaData && ANDROID.test(uaData.platform || "")) return true;
 
-    return (
-      /\blinux\b/i.test(ua) &&
-      "ontouchstart" in scope &&
-      !/windows|macintosh|cros/i.test(ua)
-    );
+    return LINUX.test(ua) && !NON_ANDROID_DESKTOP.test(ua) && hasTouch(scope);
   }
 
   return { isAndroid: isAndroid };

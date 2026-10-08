@@ -32,30 +32,46 @@
 
   var withDefaults = config.withDefaults;
   var toAbsoluteUrl = intent.toAbsoluteUrl;
+  var MODES = config.MODES;
+
+  var DOCUMENT_TITLE = "Raw Thermal";
 
   /**
    * Titik masuk tunggal untuk menyerahkan PDF ke Raw Thermal.
-   * Bukan Android (atau URL gagal dibentuk) → jatuh ke fallbackUrl/url asli.
+   *
+   * Tiga jalur, dalam urutan percobaan:
+   *   1. Android  -> Intent VIEW ke package Raw Thermal, dengan fallback
+   *      browser supaya tablet yang belum memasang aplikasinya tetap dapat PDF.
+   *   2. Lainnya  -> buka URL PDF (atau fallbackUrl) di tab browser.
    */
   function launch(url, options) {
     var opts = withDefaults(options);
+    // Satu URL tujuan cadangan untuk kedua jalur: dipakai saat perangkat
+    // bukan Android, dan dipasang sebagai browser fallback Intent saat Android.
+    var fallbackTarget = opts.fallbackUrl || url;
 
     if (!platform.isAndroid()) {
-      var target = opts.fallbackUrl || url;
-      var nonAndroid = dom.openUrl(toAbsoluteUrl(target), opts);
+      var opened = dom.openUrl(toAbsoluteUrl(fallbackTarget), opts);
       return {
-        ok: nonAndroid.opened,
-        mode: opts.fallbackUrl ? "fallback" : "browser",
-        target: nonAndroid.target
+        ok: opened.opened,
+        mode: opts.fallbackUrl ? MODES.FALLBACK : MODES.BROWSER,
+        target: opened.target
       };
     }
 
-    var built = intent.buildViewIntent(url, opts.packageName);
-    var sent = dom.clickIntent(built);
-    if (!sent) {
-      return { ok: false, mode: "android-intent", intent: built, reason: "no-document" };
+    var built = intent.buildViewIntent(url, opts.packageName, {
+      browserFallbackUrl: toAbsoluteUrl(fallbackTarget)
+    });
+
+    if (!dom.clickIntent(built)) {
+      return {
+        ok: false,
+        mode: MODES.ANDROID_INTENT,
+        intent: built,
+        reason: "no-document"
+      };
     }
-    return { ok: true, mode: "android-intent", intent: built };
+    return { ok: true, mode: MODES.ANDROID_INTENT, intent: built };
   }
 
   function printUrl(url, options) {
@@ -83,20 +99,23 @@
 
   /**
    * Teks dibuka sebagai dokumen HTML. Ini BUKAN raw ESC/POS printing —
-   * Raw Thermal saat ini hanya menerima Intent PDF.
+   * Raw Thermal saat ini hanya menerima Intent PDF. Dokumennya membawa
+   * viewport + aturan cetak 58mm, jadi dialog cetak Android bisa dipakai
+   * langsung dari tablet.
    */
   function printText(value, options) {
     var opts = withDefaults(options);
-    var html = text.buildTextDocument(value, "Raw Thermal");
+    var onAndroid = platform.isAndroid();
+    var html = text.buildTextDocument(value, DOCUMENT_TITLE, opts);
     var result = dom.openTextDocument(html, opts);
 
     var response = {
       ok: result.opened,
-      mode: platform.isAndroid() ? "browser-text" : "browser",
+      mode: onAndroid ? MODES.BROWSER_TEXT : MODES.BROWSER,
       objectUrl: result.objectUrl
     };
 
-    if (platform.isAndroid()) {
+    if (onAndroid) {
       response.message = "Untuk Raw Thermal gunakan printUrl() dengan PDF.";
     }
     return response;
@@ -115,11 +134,15 @@
 
   /** String Intent untuk debugging, tanpa memicu Intent apa pun. */
   function buildViewIntent(url, options) {
-    return intent.buildViewIntent(url, withDefaults(options).packageName);
+    var opts = withDefaults(options);
+    return intent.buildViewIntent(url, opts.packageName, {
+      browserFallbackUrl: toAbsoluteUrl(opts.fallbackUrl || url)
+    });
   }
 
   return {
     version: config.VERSION,
+    MODES: MODES,
     isAndroid: platform.isAndroid,
     print: print,
     printUrl: printUrl,

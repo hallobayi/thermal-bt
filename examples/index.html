@@ -4,17 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>RawThermal JS Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    button { display: block; margin: 8px 0; padding: 12px 16px; font-size: 16px; }
+  </style>
 </head>
 <body>
   <h3>RawThermal JS</h3>
 
-  <button id="btnPrint">Cetak Nota PDF</button>
+  <button id="btnPrint">Cetak Nota PDF (Intent)</button>
+  <button id="btnText">Cetak Teks (dialog cetak Android)</button>
 
   <script src="../dist/rawthermal.js"></script>
   <script>
     document.getElementById("btnPrint").addEventListener("click", function () {
-      RawThermal.printUrl(
-        "/kasir/generateNotaBayar?no_invoice=INV001"
+      RawThermal.printUrl("/kasir/generateNotaBayar?no_invoice=INV001");
+    });
+
+    // Jalur cadangan yang paling pasti bekerja di tablet: dokumen nota +
+    // dialog cetak Android, lalu pilih printer thermal di daftar PrintService.
+    document.getElementById("btnText").addEventListener("click", function () {
+      RawThermal.printText(
+        "TOKO CONTOH\nTotal          10.000\nTunai          10.000\n\nTerima kasih!"
       );
     });
   </script>
