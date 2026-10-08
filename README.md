@@ -2,6 +2,56 @@
 
 Library JavaScript ringan untuk PWA/browser yang ingin menyerahkan URL PDF nota ke aplikasi Raw Thermal di Android.
 
+## Aplikasi Android yang dibutuhkan
+
+Library ini **bukan** aplikasi cetak. Ia hanya menyiapkan Intent; yang mencetak
+adalah aplikasi Android ini:
+
+| | |
+| --- | --- |
+| Aplikasi | **Raw Thermal** — "Rawbt alternative", open source |
+| Sumber | <https://github.com/syofyanzuhad/raw-thermal> |
+| APK siap pasang | [Releases](https://github.com/syofyanzuhad/raw-thermal/releases) → `raw-thermal-v1.0.1.apk` (± 3,6 MB) |
+| Package | `com.rawthermal.app` — sama dengan default `packageName` library ini |
+| Dibangun dengan | Capacitor + Vue 3 + TypeScript; printer diakses lewat **Bluetooth LE (GATT)** |
+
+> Ini **bukan** aplikasi bernama "Raw Thermal" dari Play Store. Yang dipakai
+> adalah APK open source di repo di atas. Kalau Anda memakai build lain dengan
+> package berbeda, sesuaikan opsi `packageName`.
+
+### Yang bisa dan tidak bisa dilakukan aplikasi itu
+
+Dibaca langsung dari `AndroidManifest.xml` repo tersebut:
+
+- Menerima `ACTION_VIEW` dan `ACTION_SEND` untuk `application/pdf` dan
+  `image/*` — inilah jalur `printUrl()`.
+- **Tidak punya custom URI scheme.** Tidak ada `rawbt:` dan tidak ada
+  `<data android:scheme>` sama sekali, jadi Base64 ESC/POS dari browser tidak
+  bisa dikirim. Itu sebabnya `printBase64()` selalu melempar error.
+- Punya **Android PrintService** asli (`ThermalPrintService`,
+  `BIND_PRINT_SERVICE`), sehingga namanya muncul sebagai tujuan di dialog cetak
+  Android. Ini jalur paling andal dari browser/tablet: `printText()`.
+- Izinnya Bluetooth LE (`BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`,
+  `uses-feature bluetooth_le`), jadi printernya harus bisa dihubungkan lewat
+  BLE GATT — bukan Bluetooth Classic SPP.
+
+### Langkah pakai di perangkat
+
+1. Unduh dan pasang APK dari halaman Releases.
+2. Buka aplikasinya, izinkan Bluetooth, lalu pilih printer (58mm/384 dot atau
+   80mm/576 dot).
+3. Cetak halaman uji dari dalam aplikasi sampai printernya benar-benar jalan.
+4. Baru panggil `RawThermal.printUrl()` atau `printText()` dari PWA.
+
+**Belum diverifikasi di perangkat nyata:** apakah
+`intent://…#Intent;type=application/pdf;package=com.rawthermal.app;end`
+benar-benar memicu cetak. Manifest-nya memang menerima `ACTION_VIEW` untuk PDF,
+tetapi filter itu tidak menyebut skema `http/https`, jadi hasilnya bisa berbeda
+antar perangkat dan versi browser. Karena itu Intent ini selalu dipasangi
+`S.browser_fallback_url`: kalau tidak ada activity yang cocok, PDF-nya terbuka di
+browser, bukan gagal senyap. Jalur yang paling pasti tetap `printText()` +
+dialog cetak Android.
+
 ## Instalasi
 
 ```html
@@ -199,6 +249,10 @@ diperkecil. Diukur di Edge headless dengan emulasi tablet 800×1280:
 | dengan viewport (sekarang) | 800px | 1 | 12px |
 
 ## Catatan
+
+Aplikasi targetnya adalah **Raw Thermal** open source di
+<https://github.com/syofyanzuhad/raw-thermal> — lihat
+[Aplikasi Android yang dibutuhkan](#aplikasi-android-yang-dibutuhkan).
 
 Raw Thermal berbeda dari RawBT. RawBT memiliki pola URI `rawbt:` yang umum dipakai untuk mengirim data dari browser. Raw Thermal saat ini lebih berorientasi pada Android Print Service / Android document intents. Karena itu library ini tidak berpura-pura mendukung Base64 ESC/POS jika aplikasi target tidak menyediakan API tersebut.
 
